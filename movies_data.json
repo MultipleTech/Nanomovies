@@ -1,9 +1,16 @@
 [
     {
         "name": "Ghajini",
-        "year": "2008",
-        "genre": "Action, Romance",
-        "description": "Ghajini (2008) Movie stream details.",
-        "stream_url": "https://stream.nanoflix.io/Ghajini-(2008)/master.m3u8"
+        "year": "2026",
+        "genre": "Action, Comedy, Drama, Thriller, Horror, Sci-Fi, Romance, Fantasy, Adventure",
+        "description": "Please enter keywords",
+        "stream_url": "https://stream.nanoflix.io/Ghajini-(2026)/master.m3u8"
+    },
+    {
+        "name": "The Portable Door",
+        "year": "2026",
+        "genre": "Action, Comedy, Drama, Thriller, Horror, Sci-Fi, Romance, Fantasy, Mystery, Adventure",
+        "description": "Please enter keywords",
+        "stream_url": "https://stream.nanoflix.io/The-Portable-Door-(2026)/master.m3u8"
     }
 ]
