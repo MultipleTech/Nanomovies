@@ -1,128 +1,112 @@
 import requests
 import json
 import re
+from urllib.parse import unquote
 
-def get_movies_data():
-    # နည်းလမ်း ၁ - Nanoflix ရဲ့ Backend Movie List API Endpoint
-    # (မှတ်ချက် - website ရဲ့ Developer Tools Network Tab အရ အသုံးပြုသော API ဖြစ်သည်)
-    api_url = "https://api.nanoflix.io/v1/movies" 
-    
-    # တကယ်လို့ အပေါ်က API က အလုပ်မလုပ်ရင် Backup အနေနဲ့ သုံးဖို့ စာရင်းကို အောက်မှာ ကြိုထည့်ထားပေးလို့ရပါတယ်
-    backup_url = "https://nanoflix.io/api/movies"
+def scrape_all_nanoflix_movies():
+    # ရုပ်ရှင်စာရင်းတွေ အများဆုံးရှိနိုင်မယ့် ပင်မစာမျက်နှာများ
+    urls = [
+        "https://nanoflix.io/short_video/",
+        "https://nanoflix.io/movie/",
+        "https://nanoflix.io/"
+    ]
     
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-        "Referer": "https://nanoflix.io/"
+        "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5"
     }
     
-    movies_list = []
+    found_movies = {}
     
-    try:
-        print("Fetching data from Nanoflix API...")
-        response = requests.get(api_url, headers=headers, timeout=15)
-        
-        # အကယ်၍ v1 API မရရင် backup URL ကို စမ်းမယ်
-        if response.status_code != 200:
-            response = requests.get(backup_url, headers=headers, timeout=15)
+    for url in urls:
+        try:
+            print(f"Scanning target: {url}")
+            response = requests.get(url, headers=headers, timeout=15)
+            if response.status_code != 200:
+                continue
+                
+            html_content = response.text
             
-        if response.status_code == 200:
-            data = response.json()
+            # နည်းလမ်း ၁ - HTML ထဲက stream.nanoflix.io လင့်ခ်တွေကို တိုက်ရိုက်ရှာဖွေခြင်း
+            # ဥပမာ- https://stream.nanoflix.io/Ghajini-(2008)/master.m3u8
+            stream_links = re.findall(r'https://stream\.nanoflix\.io/([^\s"\'\>]+)/master\.m3u8', html_content)
             
-            # API response structure ပေါ်မူတည်ပြီး loop ပတ်မယ်
-            # အများအားဖြင့် JSON က list တိုက်ရိုက် (သို့) {'data': [...]} (သို့) {'results': [...]} လာတတ်ပါတယ်
-            items = data if isinstance(data, list) else data.get('data', data.get('results', []))
+            # နည်းလမ်း ၂ - Next.js ရဲ့ JSON block ထဲက ဇာတ်ကားအမည်တွေကို လိုက်ရှာခြင်း
+            slug_matches = re.findall(r'"slug"\s*:\s*"([^"]+)"', html_content)
+            title_matches = re.findall(r'"title"\s*:\s*"([^"]+)"', html_content)
             
-            for item in items:
-                name = item.get('title') or item.get('name') or "Unknown Movie"
-                year = str(item.get('year') or item.get('release_date', '2026')[:4])
+            # ပထမဆုံး တိုက်ရိုက်တွေ့တဲ့ Stream links တွေကို map လုပ်မယ်
+            for folder in stream_links:
+                folder_decoded = unquote(folder) # URL encoding ဖြုတ်မယ် (ဥပမာ %20 ကို spaces ပြောင်းမယ်)
                 
-                # Genre ယူခြင်း
-                genre_data = item.get('genres') or item.get('genre') or "Movies"
-                genre = ", ".join(genre_data) if isinstance(genre_data, list) else str(genre_data)
+                # Folder နာမည်ထဲကနေ Movie Name နဲ့ Year ကို ခွဲထုတ်မယ်
+                # ဥပမာ - "Ghajini-(2008)" -> Name: Ghajini, Year: 2008
+                match = re.search(r'^(.*?)-\((\d{4})\)$', folder_decoded)
+                if match:
+                    movie_name = match.group(1).replace("-", " ").strip()
+                    year = match.group(2)
+                else:
+                    movie_name = folder_decoded.replace("-", " ").strip()
+                    year = "2026"
                 
-                description = item.get('description') or item.get('overview') or "No description available."
-                
-                # Stream URL ကို Format အတိုင်း တည်ဆောက်ခြင်း
-                # နာမည်ထဲက Space တွေကို - ပြောင်းပြီး Stream URL ထုတ်မယ်
-                formatted_name = name.replace(" ", "-")
-                # special character တွေပါရင် ဖယ်ထုတ်ချင်ရင် re.sub သုံးနိုင်ပါတယ်
-                formatted_name = re.sub(r'[^\w\-]', '', formatted_name)
-                
-                stream_url = item.get('stream_url') or f"https://stream.nanoflix.io/{formatted_name}-({year})/master.m3u8"
-                
-                movies_list.append({
-                    "name": name,
-                    "year": year,
-                    "genre": genre,
-                    "description": description,
-                    "stream_url": stream_url
-                })
-        else:
-            print(f"API Access Failed Status: {response.status_code}. Using fallback layout parsing...")
-            # တကယ်လို့ API လုံးဝ ပိတ်ထားရင် Website HTML ကနေ ရှာတဲ့ ဒုတိယနည်းလမ်း (RegEx fallback)
-            return get_movies_via_regex()
+                if movie_name not in found_movies:
+                    found_movies[movie_name] = {
+                        "name": movie_name,
+                        "year": year,
+                        "genre": "Movies",
+                        "description": f"{movie_name} ({year}) Available to stream on Nanoflix.",
+                        "stream_url": f"https://stream.nanoflix.io/{folder}/master.m3u8"
+                    }
             
-        return movies_list
-        
-    except Exception as e:
-        print(f"Error accessing API: {e}")
-        return get_movies_via_regex()
+            # ဒုတိယအဆင့် - တကယ်လို့ slug နဲ့ title တွေတွေ့ရင် ၎င်းတို့ဆီကနေ stream url တည်ဆောက်မယ်
+            for i in range(min(len(slug_matches), len(title_matches))):
+                title = title_matches[i].encode().decode('unicode-escape', errors='ignore')
+                slug = slug_matches[i]
+                
+                # ခုနှစ် ရှာမယ်
+                year_match = re.search(r'\b(20\d\d|19\d\d)\b', title)
+                year = year_match.group(0) if year_match else "2026"
+                clean_title = re.sub(r'-\(\d{4}\)', '', title).strip()
+                
+                if clean_title not in found_movies:
+                    formatted_slug = slug.replace(" ", "-")
+                    found_movies[clean_title] = {
+                        "name": clean_title,
+                        "year": year,
+                        "genre": "Movies",
+                        "description": f"{clean_title} ({year}) Available to stream on Nanoflix.",
+                        "stream_url": f"https://stream.nanoflix.io/{formatted_slug}-({year})/master.m3u8"
+                    }
+                    
+        except Exception as e:
+            print(f"Error scanning {url}: {e}")
+            continue
 
-def get_movies_via_regex():
-    """ HTML ထဲမှာ မြှုပ်ထားတဲ့ JSON Schema သို့မဟုတ် Script တဂ်တွေထဲက Data ကို RegEx နဲ့ ရှာတဲ့နည်းလမ်း """
-    base_url = "https://nanoflix.io/movie/"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-    movies_list = []
-    
-    try:
-        res = requests.get(base_url, headers=headers, timeout=15)
-        if res.status_code == 200:
-            html = res.text
-            # HTML ထဲမှာ Next.js ရဲ့ ကိန်းဂဏန်း data တွေပါတဲ့ <script id="__NEXT_DATA__"> ကို ရှာဖွေခြင်း
-            json_finder = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html)
-            
-            if json_finder:
-                page_data = json.loads(json_finder.group(1))
-                # Next.js state ထဲက movie list ပါမယ့် နေရာကို လှမ်းယူခြင်း
-                props = page_data.get('props', {}).get('pageProps', {})
-                items = props.get('movies') or props.get('initialData') or props.get('fallback', {}).values()
-                
-                # ရှာတွေ့တဲ့ items တွေကို စစ်ထုတ်ပြီး format ပြင်မယ်
-                for item in items:
-                    if isinstance(item, dict) and ('title' in item or 'name' in item):
-                        name = item.get('title') or item.get('name')
-                        year = str(item.get('year', '2026'))
-                        formatted_name = name.replace(" ", "-")
-                        movies_list.append({
-                            "name": name,
-                            "year": year,
-                            "genre": item.get('genre', 'Movies'),
-                            "description": item.get('description', ''),
-                            "stream_url": f"https://stream.nanoflix.io/{formatted_name}-({year})/master.m3u8"
-                        })
-    except Exception as e:
-        print(f"Regex fall back error: {e}")
-        
-    return movies_list
+    return list(found_movies.values())
 
 if __name__ == "__main__":
-    all_movies = get_movies_data()
+    print("Starting comprehensive Nanoflix Scraper...")
+    movies_data = scrape_all_nanoflix_movies()
     
-    if all_movies:
+    # ရလာတဲ့ data အားလုံးကို json သိမ်းမယ်
+    if movies_data:
         with open("movies_data.json", "w", encoding="utf-8") as f:
-            json.dump(all_movies, f, indent=4, ensure_ascii=False)
-        print(f"Successfully generated movies_data.json with {len(all_movies)} movies!")
+            json.dump(movies_data, f, indent=4, ensure_ascii=False)
+        print(f"Done! Captured {len(movies_data)} total movies inside movies_data.json")
     else:
-        # လုံးဝမရခဲ့ရင် JSON ဗလာမဖြစ်အောင် နမူနာ တစ်ခု ထည့်ပေးထားမယ်
-        sample_data = [{
-            "name": "Ghajini",
-            "year": "2008",
-            "genre": "Action, Romance",
-            "description": "Ghajini (2008) Movie stream details.",
-            "stream_url": "https://stream.nanoflix.io/Ghajini-(2008)/master.m3u8"
-        }]
+        # လုံးဝရှာမတွေ့တဲ့ အခြေအနေမျိုးအတွက် စာရင်းအသေတစ်ခု (Fallback List) ထည့်ပေးထားခြင်း
+        # သယ်ရင်း ဇာတ်ကားတွေ ထပ်တိုးချင်ရင် ဒီအောက်က list မှာ ကိုယ်တိုင် format အတိုင်း ကြိုထည့်ထားလို့ရပါတယ်
+        hardcoded_list = [
+            {
+                "name": "Ghajini",
+                "year": "2008",
+                "genre": "Action, Romance",
+                "description": "Ghajini (2008) Movie stream details.",
+                "stream_url": "https://stream.nanoflix.io/Ghajini-(2008)/master.m3u8"
+            }
+        ]
         with open("movies_data.json", "w", encoding="utf-8") as f:
-            json.dump(sample_data, f, indent=4, ensure_ascii=False)
-        print("Generated with backup sample data.")
+            json.dump(hardcoded_list, f, indent=4, ensure_ascii=False)
+        print("No dynamic data found. Saved default list.")
                 
