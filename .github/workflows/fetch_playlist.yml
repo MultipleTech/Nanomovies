@@ -1,10 +1,7 @@
 name: Fetch Nanoflix Playlist JSON
 
 on:
-  # နည်းလမ်း ၁ - မိမိစိတ်ကြိုက် Manual နှိပ်ပြီး Run ချင်ရင် (GitHub UI ကနေ Run လို့ရမယ်)
   workflow_dispatch:
-  
-  # နည်းလမ်း ၂ - နေ့တိုင်း ည ၁၂ နာရီမှာ Auto run စေချင်ရင် (လိုအပ်မှ # ဖြုတ်သုံးပါ)
   # schedule:
   #   - cron: '0 0 * * *'
 
@@ -17,9 +14,9 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    # ၂။ Python Environment အသင့်ပြင်မယ်
+    # ၂။ Python Environment အသင့်ပြင်မယ် (ဒီနေရာကို setup-python လို့ ပြင်ထားပါတယ်)
     - name: Set up Python
-      uses: actions/uses-python@v5
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
@@ -29,16 +26,15 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests
 
-    # ၄။ ပေးထားတဲ့ Python Script ကို Run မယ် 
-    # (မှတ်ချက် - သင့် python ဖိုင်အမည်ကို main.py ဟု ယူဆထားသည်)
+    # ၄။ Python Script ကို Run မယ်
     - name: Run Playlist Extractor
       run: python main.py
 
-    # ၅။ ထွက်လာတဲ့ playlist_output.json ကို Repository ထဲ ပြန်ပြီး Auto Commit / Push လုပ်မယ်
+    # ၅။ ထွက်လာတဲ့ JSON ကို Repository ထဲ ပြန်ပြီး Auto Commit / Push လုပ်မယ်
     - name: Commit and Push Changes
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git add playlist_output.json
-        # update ဖြစ်စရာရှိမှသာ commit လုပ်ရန်
         git diff --quiet && git diff --staged --quiet || (git commit -m "Update: Nanoflix Playlist JSON [skip ci]" && git push)
+        
