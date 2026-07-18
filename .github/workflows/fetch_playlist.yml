@@ -2,35 +2,81 @@ name: Fetch Nanoflix Playlist JSON
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: '0 0 * * *'
 
 jobs:
   build-and-run:
     runs-on: ubuntu-latest
 
     steps:
-    # ၁။ Repository ထဲက Code တွေကို ဆွဲယူမယ်
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    # ၂။ Python Environment အသင့်ပြင်မယ် (ဒီနေရာကို setup-python လို့ ပြင်ထားပါတယ်)
+    # ၁။ Python အသင့်ပြင်မယ်
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    # ၃။ လိုအပ်တဲ့ Requests Library ကို သွင်းမယ်
+    # ၂။ လိုအပ်တဲ့ Requests သွင်းမယ်
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
         pip install requests
 
-    # ၄။ Python Script ကို Run မယ်
-    - name: Run Playlist Extractor
-      run: python main.py
+    # ၃။ Python Code ကို ဖိုင်မလိုဘဲ YML ထဲမှာ တိုက်ရိုက် Run စေခြင်း
+    - name: Run Playlist Extractor Directly
+      shell: python
+      run: |
+        import requests
+        import json
+        from urllib.parse import urljoin
 
-    # ၅။ ထွက်လာတဲ့ JSON ကို Repository ထဲ ပြန်ပြီး Auto Commit / Push လုပ်မယ်
+        def parse_m3u8(master_url):
+            results = {"movie_name": "Ghajini (2008)", "master_url": master_url, "streams": []}
+            try:
+                response = requests.get(master_url, timeout=10)
+                if response.status_code != 200: return None
+                
+                lines = response.text.splitlines()
+                current_info = {}
+                for line in lines:
+                    line = line.strip()
+                    if not line: continue
+                    if line.startswith("#EXT-X-STREAM-INF:"):
+                        info_parts = line.split(",")
+                        for part in info_parts:
+                            if "RESOLUTION=" in part: current_info["resolution"] = part.split("=")[1]
+                            if "BANDWIDTH=" in part: current_info["bandwidth"] = part.split("=")[1]
+                    elif not line.startswith("#"):
+                        playlist_url = urljoin(master_url, line)
+                        current_info["playlist_url"] = playlist_url
+                        current_info["segments"] = fetch_segments(playlist_url)
+                        results["streams"].append(current_info)
+                        current_info = {}
+                return results
+            except Exception as e:
+                print(f"Error: {e}")
+                return None
+
+        def fetch_segments(playlist_url):
+            segments = []
+            try:
+                response = requests.get(playlist_url, timeout=10)
+                if response.status_code == 200:
+                    for line in response.text.splitlines():
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            segments.append(urljoin(playlist_url, line))
+            except: pass
+            return segments
+
+        master_m3u8_url = "https://stream.nanoflix.io/Ghajini-(2008)/master.m3u8"
+        video_data = parse_m3u8(master_m3u8_url)
+        if video_data:
+            with open("playlist_output.json", "w") as f:
+                json.dump(video_data, f, indent=4)
+
+    # ၄။ ရလာတဲ့ JSON ကို Push ပြန်လုပ်မယ်
     - name: Commit and Push Changes
       run: |
         git config --global user.name "github-actions[bot]"
