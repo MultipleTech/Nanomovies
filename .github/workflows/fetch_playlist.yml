@@ -1,9 +1,7 @@
 name: Fetch Nanoflix Movies Data
 
 on:
-  workflow_dispatch: # Manual run ချင်ရင်
-  schedule:
-    - cron: '0 18 * * *' # နေ့တိုင်း မြန်မာစံတော်ချိန် ည ၁၁ နာရီခွဲမှာ Auto run မယ်
+  workflow_dispatch:
 
 jobs:
   scrape-data:
@@ -23,7 +21,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install requests beautifulsoup4
 
-
     - name: Run Movie Scraper
       run: python scrape_movies.py
 
@@ -32,5 +29,5 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git add movies_data.json
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Update: All Movies Data [skip ci]" && git push)
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Update: Filtered Movies Dataset [skip ci]" && git push)
         
