@@ -1,16 +1,37 @@
 [
     {
         "name": "Ghajini",
-        "year": "2026",
-        "genre": "Action, Comedy, Drama, Thriller, Horror, Sci-Fi, Romance, Fantasy, Adventure",
-        "description": "Please enter keywords",
-        "stream_url": "https://stream.nanoflix.io/Ghajini-(2026)/master.m3u8"
+        "year": "2008",
+        "genre": "Action, Romance, Thriller",
+        "description": "အိန္ဒိယရုပ်ရှင်လောကမှာ ပထမဆုံးအကြိမ် ကူရူပီ ၁ ဘီလီယံ ကလပ်ဝင်ခဲ့တဲ့ စံချိန်တင် ရုပ်ရှင်ကောင်းတစ်ကားဖြစ်ပြီး ချစ်သူမိန်းကလေးကို ရက်ရက်စက်စက် သတ်ဖြတ်သွားတဲ့ မြေအောက်ဂိုဏ်းချုပ်ကြီးကို မေ့လွယ်တဲ့ရောဂါကြားကနေ သွေးအေးအေးနဲ့ အကွက်စိပ်စိပ် ပြန်လည်ကလဲ့စားချေတဲ့ ဇာတ်ကား ဖြစ်ပါတယ်။",
+        "stream_url": "https://stream.nanoflix.io/Ghajini-(2008)/master.m3u8"
+    },
+    {
+        "name": "Red Notice",
+        "year": "2021",
+        "genre": "Action, Comedy, Crime",
+        "description": "အင်တာပိုလ် ကနေ ကမ္ဘာ့အလိုရှိဆုံး ထိပ်တန်းရာဇဝတ်ကောင်တွေကို ဖမ်းဆီးဖို့ ထုတ်ပြန်တဲ့ နီပိန်းဝရမ်း ကို အခြေခံပြီး ကမ္ဘာကျော် အနုပညာပစ္စည်းတစ်ခုဖြစ်တဲ့ အီဂျစ်ဘုရင်မ ကလီယိုပါထရာရဲ့ ရွှေဥ ၃ လုံး ကို အပြိုင်အဆိုင် လုယူဖို့ ဉာဏ်ချင်းပြိုင်ကြတဲ့ သဲထိတ်ရင်ဖို ရုပ်ရှင်ကောင်းတစ်ကား ဖြစ်ပါတယ်။",
+        "stream_url": "https://stream.nanoflix.io/Red-Notice-(2021)/master.m3u8"
+    },
+    {
+        "name": "Black Widow",
+        "year": "2021",
+        "genre": "Action, Adventure, Sci-Fi",
+        "description": "Captain America: Civil War နဲ့ Avengers: Infinity War ကြားကာလ အစိုးရရဲ့ ဖမ်းဆီးမှုကို ရှောင်တိမ်းရင်း အထီးကျန်နေတဲ့ နာတာရှာ ရိုမန်နော့ဗ် တစ်ယောက် သူမကို Avenger တစ်ယောက် ဖြစ်မလာခင် ကလေးဘဝကတည်းက စိတ္တဇဆန်ဆန် မျက်နှာဖုံးစွပ် ကြိုးကိုင်ခဲ့တဲ့ ရုရှားရဲ့ လျှို့ဝှက်သူလျှိုလေ့ကျင့်ရေးဌာန Red Room ကို ပြန်လည်ခြေချပြီး ဖြိုခွဲရမယ့် ရုပ်ရှင်ကောင်းတစ်ကား ဖြစ်ပါတယ်။",
+        "stream_url": "https://stream.nanoflix.io/Black-Widow-(2021)/master.m3u8"
+    },
+    {
+        "name": "Nightcrawler",
+        "year": "2014",
+        "genre": "Crime, Drama, Thriller",
+        "description": "လော့စ်အိန်ဂျလိစ် မြို့ပြကြီးရဲ့ မှောင်မှိုက်တဲ့ ညဉ့်နက်သန်းခေါင်ယံ လမ်းမတွေပေါ်မှာ သွေးသံရဲရဲ အခင်းဖြစ်ပွားရာနေရာတွေကို သတင်းဦးရဖို့ ဉာဏ်ချင်းပြိုင်ရင်း လူသားဆန်မှုကို စွန့်လွှတ်ကာ သွေးအေးလှတဲ့ စိတ္တဇ သားကောင်အဖြစ် ပြောင်းလဲသွားတဲ့ လူတစ်ယောက်အကြောင်းကို ရင်တမတမ ပုံဖော်ထားတဲ့ ဇာတ်ကား ဖြစ်ပါတယ်။",
+        "stream_url": "https://stream.nanoflix.io/Nightcrawler-(2014)/master.m3u8"
     },
     {
         "name": "The Portable Door",
-        "year": "2026",
-        "genre": "Action, Comedy, Drama, Thriller, Horror, Sci-Fi, Romance, Fantasy, Mystery, Adventure",
-        "description": "Please enter keywords",
-        "stream_url": "https://stream.nanoflix.io/The-Portable-Door-(2026)/master.m3u8"
+        "year": "2023",
+        "genre": "Adventure, Comedy, Fantasy",
+        "description": "လန်ဒန်မြို့က ထူးဆန်းလှတဲ့ J.W. Wells & Co. ဆိုတဲ့ ကော်ပိုရိတ်ကုမ္ပဏီကြီးတစ်ခုမှာ အလုပ်သင်အဖြစ် ဝင်ရောက်လုပ်ကိုင်ခွင့်ရခဲ့တဲ့ လူငယ်လေး ပေါလ် အကြောင်းကနေ စတင်ထားပြီး သာမန်ရုံးတစ်ခုမဟုတ်ဘဲ ကမ္ဘာပေါ်က အဖြစ်အပျက်တွေ၊ ကံကြမ္မာတွေကို ပြောင်းလဲနိုင်တဲ့ မှော်ဆန်တဲ့ ရုံးကြီးအကြောင်း ရိုက်ကူးထားတာဖြစ်ပါတယ်။",
+        "stream_url": "https://stream.nanoflix.io/The-Portable-Door-(2023)/master.m3u8"
     }
 ]
