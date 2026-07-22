@@ -9,7 +9,21 @@ const HEADERS = {
 
 const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ') : '';
 
-// Detail page သို့ဝင်ရောက်ပြီး .m3u8 stream URL နှင့် Description အပြည့်အစုံ ရယူခြင်း
+// Stream URL ကို Title-(Year)/master.m3u8 ပုံစံဖြင့် တည်ဆောက်ပေးသည့် Function
+function formatStreamUrl(title, year) {
+    if (!title) return '';
+    const formattedTitle = title
+        .trim()
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join('-');
+    
+    // Year ရှိပါက -(2008) ပုံစံဖြင့် ကွင်းစကွင်းပိတ် ထည့်သွင်းမည်
+    const yearStr = year ? `-(${year})` : '';
+    return `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`;
+}
+
+// Detail page သို့ဝင်ရောက်ပြီး Stream URL နှင့် Description အပြည့်အစုံ ရယူခြင်း
 async function scrapeDetail(pageUrl, title, year) {
     try {
         const { data } = await axios.get(pageUrl, { headers: HEADERS });
@@ -26,26 +40,18 @@ async function scrapeDetail(pageUrl, title, year) {
             if (iframeSrc) streamUrl = iframeSrc;
         }
 
-        // 2. ရှာမတွေ့ပါက Stream URL Pattern ဖြင့် Auto Formatting ပြုလုပ်ခြင်း
-        if (!streamUrl && title) {
-            const formattedTitle = title
-                .split(' ')
-                .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-                .join('-');
-            const yearStr = year ? `-${year}` : '';
-            streamUrl = `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`;
+        // 2. တိုက်ရိုက်ရှာမတွေ့ပါက Title-(Year) Pattern ဖြင့် Auto Formatting ပြုလုပ်ခြင်း
+        if (!streamUrl) {
+            streamUrl = formatStreamUrl(title, year);
         }
 
-        // Full Description ဆွဲယူခြင်း
         const fullDesc = cleanText($('.entry-content, .video-description, .description').text());
 
         return { streamUrl, fullDesc };
     } catch (e) {
         console.error(`  ⚠️ Detail Error (${pageUrl}):`, e.message);
-        const formattedTitle = title.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-');
-        const yearStr = year ? `-${year}` : '';
         return { 
-            streamUrl: `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`,
+            streamUrl: formatStreamUrl(title, year),
             fullDesc: "" 
         };
     }
@@ -78,10 +84,8 @@ async function scrapeListPage(listUrl, type = 'movie') {
         const genres = $el.find('.video-cat a, .genre a, .category a')
             .map((_, a) => cleanText($(a).text())).get().filter(Boolean);
 
-        // Category: ပထမဆုံး Genre သို့မဟုတ် Default
         const category = genres.length > 0 ? genres[0] : (type === 'tv' ? 'TV Series' : 'Action');
 
-        // Duplicate များ ဖယ်ထုတ်ခြင်း
         if (!resultsMap.has(itemUrl) || (!resultsMap.get(itemUrl).year && year)) {
             resultsMap.set(itemUrl, {
                 title,
@@ -103,7 +107,6 @@ async function scrapeListPage(listUrl, type = 'movie') {
         console.log(`  🎬 Fetching stream data: ${item.title}`);
         const detail = await scrapeDetail(item.itemUrl, item.title, item.year);
         
-        // တောင်းဆိုထားသည့် JSON Format အတိုင်း တည်ဆောက်ခြင်း
         finalResults.push({
             title: item.title,
             year: item.year,
@@ -132,4 +135,3 @@ async function main() {
 }
 
 main().catch(console.error);
-                                
