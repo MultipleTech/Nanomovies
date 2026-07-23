@@ -7,30 +7,30 @@ const HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
 };
 
+// Extra Space များကို ရှင်းထုတ်ပေးသည့် Helper Function
 const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ') : '';
 
-// Detail page သို့ဝင်ရောက်ပြီး Stream URL နှင့် Description ဆွဲယူခြင်း
-// Stream URL ဖွဲ့စည်းပေးမည့် Helper Function
+// 1. Stream URL ကို တိကျသော Pattern ဖြစ်သည့် Title-(Year) ဖြင့် တည်ဆောက်ပေးသည့် Function
 function generateStreamUrl(title, year) {
     if (!title) return '';
 
-    // Title ထဲတွင် (2008) ပါဝင်နေပါက နှစ်ကို ခွဲထုတ်ပါ
+    // Title ထဲတွင် ပါဝင်နေသော (2008) စသည့် နှစ်များကို ဖယ်ထုတ်ပါ
     let cleanTitle = title.replace(/\s*\(\d{4}\)\s*/g, '').trim();
 
-    // စာလုံးတိုင်း၏ ပထမအက္ခရာကို Capital ပြုလုပ်ပြီး space များကို '-' ပြောင်းပါ
+    // စာလုံးတိုင်း၏ ပထမအက္ခရာကို Capital ပြုလုပ်ပြီး Space များကို '-' ပြောင်းပါ
     const formattedTitle = cleanTitle
         .split(/\s+/)
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join('-');
 
-    // Year မှ လက်သည်းကွင်းများကို ရှင်းထုတ်ပြီး -(YYYY) ပုံစံ ပြုလုပ်ပါ
+    // Year ထဲမှ လက်သည်းကွင်းများကို ရှင်းထုတ်ပြီး -(YYYY) ပုံစံ ပြုလုပ်ပါ
     const cleanYear = year ? year.replace(/[()]/g, '').trim() : '';
     const yearStr = cleanYear ? `-(${cleanYear})` : '';
 
     return `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`;
 }
 
-// Detail Page Scraper
+// 2. Detail Page Scraper
 async function scrapeDetail(pageUrl, title, year) {
     try {
         const { data } = await axios.get(pageUrl, { headers: HEADERS, timeout: 10000 });
@@ -38,7 +38,7 @@ async function scrapeDetail(pageUrl, title, year) {
         
         let streamUrl = null;
 
-        // 1. HTML / Script ထဲမှ .m3u8 တိုက်ရိုက်ပါမပါ ရှာခြင်း
+        // Page ထဲတွင် .m3u8 တိုက်ရိုက်ပါမပါ ရှာပါ
         const m3u8Match = data.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i);
         if (m3u8Match) {
             streamUrl = m3u8Match[0];
@@ -47,7 +47,7 @@ async function scrapeDetail(pageUrl, title, year) {
             if (iframeSrc) streamUrl = iframeSrc;
         }
 
-        // 2. မတွေ့ပါက Correct Pattern ဖြင့် Auto Generate လုပ်ခြင်း
+        // မတွေ့ပါက Correct Stream Pattern ဖြင့် Auto Generate လုပ်ပါ
         if (!streamUrl) {
             streamUrl = generateStreamUrl(title, year);
         }
@@ -63,7 +63,7 @@ async function scrapeDetail(pageUrl, title, year) {
     }
 }
 
-// Single List Page များကို Scrape လုပ်ပေးသည့် Function
+// 3. Single List Page ကို Fetch လုပ်ပေးသည့် Function
 async function fetchPageItems(url, type) {
     try {
         const { data } = await axios.get(url, { headers: HEADERS, timeout: 10000 });
@@ -105,17 +105,16 @@ async function fetchPageItems(url, type) {
 
         return items;
     } catch (e) {
-        return []; // စာမျက်နှာ ကုန်သွားပါက သို့မဟုတ် Error တက်ပါက Array အလွတ်ပြန်မည်
+        return [];
     }
 }
 
-// Сာမျက်နှာပေါင်းစုံ (Pagination) ကို Loop ပတ်၍ Multi-page Scrape လုပ်ပေးမည့် Function
+// 4. စာမျက်နှာပေါင်းစုံ (Pagination Loop) Scrape လုပ်ပေးမည့် Function
 async function scrapeAllPages(targetUrl, type = 'movie', maxPages = 5) {
     console.log(`\n🔍 Scraping all pages for ${type} starting from: ${targetUrl}`);
     const resultsMap = new Map();
 
     for (let page = 1; page <= maxPages; page++) {
-        // WordPress Pagination Format: /page/1/, /page/2/ သို့မဟုတ် ?paged=2
         let pageUrl = targetUrl;
         if (page > 1) {
             pageUrl = targetUrl.endsWith('/') 
@@ -127,7 +126,7 @@ async function scrapeAllPages(targetUrl, type = 'movie', maxPages = 5) {
         const items = await fetchPageItems(pageUrl, type);
 
         if (items.length === 0) {
-            console.log(`  ⏹️ Page ${page} တွင် Data မရှိတော့ပါ။ Scraping ရပ်နားပါမည်။`);
+            console.log(`  ⏹️ Page ${page} တွင် Data မရှိတော့ပါ။ ရပ်နားပါမည်။`);
             break;
         }
 
@@ -143,8 +142,8 @@ async function scrapeAllPages(targetUrl, type = 'movie', maxPages = 5) {
     }
 
     const allItems = Array.from(resultsMap.values());
-    console.log(`\n→ Total unique items found across pages: ${allItems.length}`);
-    console.log(`→ Fetching stream URLs for all ${allItems.length} items...`);
+    console.log(`\n→ Total unique items found: ${allItems.length}`);
+    console.log(`→ Processing stream URLs...`);
 
     const finalResults = [];
     for (let i = 0; i < allItems.length; i++) {
@@ -165,13 +164,14 @@ async function scrapeAllPages(targetUrl, type = 'movie', maxPages = 5) {
     return finalResults;
 }
 
+// 5. Main Execution
 async function main() {
-    // 1. New Releases (Movies) - maxPages ကို လိုသလို တိုး/လျှော့ ပြုလုပ်နိုင်ပါသည်
+    // Movies (maxPages ကို 5 ဟု သတ်မှတ်ထားသည်၊ လိုသလို တိုးနိုင်ပါသည်)
     const movies = await scrapeAllPages(`${BASE_URL}/new-release/`, 'movie', 5);
     await fs.writeJson('nanoflix_movies.json', movies, { spaces: 2 });
     console.log('✅ Movies saved to nanoflix_movies.json');
 
-    // 2. TV Shows
+    // TV Shows
     const tvShows = await scrapeAllPages(`${BASE_URL}/tv_shows/`, 'tv', 5);
     await fs.writeJson('nanoflix_tv_shows.json', tvShows, { spaces: 2 });
     console.log('✅ TV Shows saved to nanoflix_tv_shows.json');
@@ -180,3 +180,4 @@ async function main() {
 }
 
 main().catch(console.error);
+                
