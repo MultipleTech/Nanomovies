@@ -10,14 +10,36 @@ const HEADERS = {
 const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ') : '';
 
 // Detail page သို့ဝင်ရောက်ပြီး Stream URL နှင့် Description ဆွဲယူခြင်း
+// Stream URL ဖွဲ့စည်းပေးမည့် Helper Function
+function generateStreamUrl(title, year) {
+    if (!title) return '';
+
+    // Title ထဲတွင် (2008) ပါဝင်နေပါက နှစ်ကို ခွဲထုတ်ပါ
+    let cleanTitle = title.replace(/\s*\(\d{4}\)\s*/g, '').trim();
+
+    // စာလုံးတိုင်း၏ ပထမအက္ခရာကို Capital ပြုလုပ်ပြီး space များကို '-' ပြောင်းပါ
+    const formattedTitle = cleanTitle
+        .split(/\s+/)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join('-');
+
+    // Year မှ လက်သည်းကွင်းများကို ရှင်းထုတ်ပြီး -(YYYY) ပုံစံ ပြုလုပ်ပါ
+    const cleanYear = year ? year.replace(/[()]/g, '').trim() : '';
+    const yearStr = cleanYear ? `-(${cleanYear})` : '';
+
+    return `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`;
+}
+
+// Detail Page Scraper
 async function scrapeDetail(pageUrl, title, year) {
     try {
         const { data } = await axios.get(pageUrl, { headers: HEADERS, timeout: 10000 });
         const $ = cheerio.load(data);
         
         let streamUrl = null;
+
+        // 1. HTML / Script ထဲမှ .m3u8 တိုက်ရိုက်ပါမပါ ရှာခြင်း
         const m3u8Match = data.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i);
-        
         if (m3u8Match) {
             streamUrl = m3u8Match[0];
         } else {
@@ -25,23 +47,17 @@ async function scrapeDetail(pageUrl, title, year) {
             if (iframeSrc) streamUrl = iframeSrc;
         }
 
-        if (!streamUrl && title) {
-            const formattedTitle = title
-                .split(' ')
-                .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-                .join('-');
-            const yearStr = year ? `-${year}` : '';
-            streamUrl = `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`;
+        // 2. မတွေ့ပါက Correct Pattern ဖြင့် Auto Generate လုပ်ခြင်း
+        if (!streamUrl) {
+            streamUrl = generateStreamUrl(title, year);
         }
 
         const fullDesc = cleanText($('.entry-content, .video-description, .description').text());
 
         return { streamUrl, fullDesc };
     } catch (e) {
-        const formattedTitle = title ? title.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-') : 'movie';
-        const yearStr = year ? `-${year}` : '';
         return { 
-            streamUrl: `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`,
+            streamUrl: generateStreamUrl(title, year),
             fullDesc: "" 
         };
     }
