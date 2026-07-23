@@ -19,13 +19,11 @@ function generateStreamUrl(title, year) {
         .replace(/\b(19\d{2}|20[0-2]\d)\b/g, '')
         .trim();
 
-    // စာလုံးတိုင်း၏ ပထမအက္ခရာကို Capital ပြုလုပ်ပြီး Space များကို '-' ပြောင်းပါ
     const formattedTitle = cleanTitle
         .split(/\s+/)
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join('-');
 
-    // Year ရှိပါက -(YYYY) ပုံစံ ပြုလုပ်ပါ
     const yearMatch = year ? year.match(/\b(19\d{2}|20[0-2]\d)\b/) : null;
     const validYear = yearMatch ? yearMatch[0] : '';
     const yearStr = validYear ? `-(${validYear})` : '';
@@ -33,7 +31,7 @@ function generateStreamUrl(title, year) {
     return `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`;
 }
 
-// 2. Detail Page Scraper (List တွင် Year မပါပါက Detail Page ထဲမှ Year & Stream URL ရှာဖွေခြင်း)
+// 2. Detail Page Scraper (Footer/Copyright 2026 ကို ရှောင်ရှားပြီး Year ရှာဖွေခြင်း)
 async function scrapeDetail(pageUrl, title, initialYear) {
     try {
         const { data } = await axios.get(pageUrl, { headers: HEADERS, timeout: 10000 });
@@ -41,19 +39,17 @@ async function scrapeDetail(pageUrl, title, initialYear) {
         
         let finalYear = initialYear;
 
-        // Detail Page ထဲမှ Year ကို ထပ်မံ ရှာဖွေခြင်း
+        // အကယ်၍ List တွင် Year မပါလာပါက Footer / Header များကို ဖယ်ထုတ်ပြီးမှ ရှာမည်
         if (!finalYear) {
-            // Header / Meta / Title Area များမှ ရှာမည်
-            const metaAreaText = $('.movie-info, .entry-title, .video-info, .post-meta, header, h1, title').text();
-            const yearMatch = metaAreaText.match(/\b(19\d{2}|20[0-2]\d)\b/);
+            // Footer, Header, Nav စသည်တို့ကို ဖယ်ရှားခြင်း (Copyright 2026 မပါလာစေရန်)
+            $('footer, header, nav, .footer, .header, .site-footer, .site-header').remove();
+
+            // Movie Info, Title, Meta ဧရိယာများထဲမှသာ Year ကို ရှာမည်
+            const targetAreaText = $('.movie-info, .entry-title, .video-info, .post-meta, h1, .dt-release, .entry-content').text();
+            const yearMatch = targetAreaText.match(/\b(19\d{2}|20[0-2]\d)\b/);
             
             if (yearMatch) {
                 finalYear = yearMatch[0];
-            } else {
-                // မတွေ့ပါက တစ်မျက်နှာလုံး Text ထဲမှ Year ကို ရှာမည်
-                const entireText = $('body').text();
-                const bodyYearMatch = entireText.match(/\b(19\d{2}|20[0-2]\d)\b/);
-                if (bodyYearMatch) finalYear = bodyYearMatch[0];
             }
         }
 
@@ -67,12 +63,10 @@ async function scrapeDetail(pageUrl, title, initialYear) {
             if (iframeSrc) streamUrl = iframeSrc;
         }
 
-        // မတွေ့ပါက Correct Stream Pattern ဖြင့် Auto Generate လုပ်ပါမည်
         if (!streamUrl) {
             streamUrl = generateStreamUrl(title, finalYear);
         }
 
-        // Description သန့်စင်ခြင်း
         let fullDesc = cleanText($('.entry-content p, .video-description p, .description p').first().text());
         if (!fullDesc) {
             fullDesc = cleanText($('.entry-content, .video-description').text()).split('Show More')[0];
@@ -106,12 +100,11 @@ async function fetchPageItems(url, type) {
 
             itemUrl = itemUrl.startsWith('http') ? itemUrl : BASE_URL + itemUrl;
 
-            // Item Card တစ်ခုလုံး၏ စာသားထဲမှ Year (19xx, 20xx) ကို တိုက်ရိုက် Regex ဖြင့် ဖမ်းယူခြင်း
-            const cardText = $el.text();
+            // Card ထဲမှ Year ကိုသာ သီးသန့်ဖမ်းယူခြင်း
+            const cardText = $el.find('.video-years, .year, .meta-year, .post-meta').text() || $el.text();
             const yearMatch = cardText.match(/\b(19\d{2}|20[0-2]\d)\b/);
             let year = yearMatch ? yearMatch[0] : "";
 
-            // Title ထဲမှ (2008) စသည်တို့ကို ဖယ်ထုတ်ပြီး Title သန့်စင်ခြင်း
             const title = rawTitle
                 .replace(/\s*\(\s*(19\d{2}|20[0-2]\d)\s*\)\s*/g, '')
                 .replace(/\b(19\d{2}|20[0-2]\d)\b/g, '')
