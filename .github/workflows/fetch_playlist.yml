@@ -8,6 +8,11 @@ on:
   push:
     branches:
       - main
+    # JSON ဖိုင်များ နှင့် README စသည်တို့ကို Manual ပြင်ပြီး Push လုပ်ပါက Workflow ကို မ Run စေရန် တားဆီးခြင်း
+    paths-ignore:
+      - 'nanoflix_movies.json'
+      - 'nanoflix_tv_shows.json'
+      - '**.md'
 
 jobs:
   scrape-and-save:
