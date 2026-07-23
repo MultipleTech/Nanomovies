@@ -20,7 +20,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up index.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -30,8 +30,7 @@ jobs:
         run: npm ci || npm install
 
       - name: Run Scraper
-        # မိမိစက်ထဲရှိ JS ဖိုင်အမည် (scraper.js သို့မဟုတ် index.js) အမှန်အတိုင်း ထည့်ပါ
-        run: node scraper.js
+        run: node index.js
 
       - name: Commit and Push updated JSON
         run: |
