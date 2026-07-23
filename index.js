@@ -7,49 +7,51 @@ const HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
 };
 
-// Extra Space များကို ရှင်းထုတ်ပေးသည့် Helper Function
 const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ') : '';
 
-// 1. Stream URL ဖွဲ့စည်းပေးမည့် Helper Function (Year မပါပါက URL မပျက်အောင် ပြင်ဆင်ထားသည်)
+// 1. Stream URL ဖွဲ့စည်းပေးမည့် Helper Function
 function generateStreamUrl(title, year) {
     if (!title) return '';
 
-    // Title ထဲတွင် (2008) ပါဝင်နေပါက နှစ်ကို ဖယ်ထုတ်ပါ
-    let cleanTitle = title.replace(/\s*\(\d{4}\)\s*/g, '').trim();
+    // Title ထဲမှ Year နှင့် ပိုနေသော စာသားများကို ဖယ်ထုတ်ပါ
+    let cleanTitle = title.replace(/\s*\(\d{4}\)\s*/g, '').replace(/\b(19|20)\d{2}\b/g, '').trim();
 
-    // စာလုံးတိုင်း၏ ပထမအက္ခရာကို Capital ပြုလုပ်ပြီး space များကို '-' ပြောင်းပါ
+    // စာလုံးတိုင်း၏ ပထမအက္ခရာကို Capital ပြုလုပ်ပြီး Space များကို '-' ပြောင်းပါ
     const formattedTitle = cleanTitle
         .split(/\s+/)
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join('-');
 
-    // Year ရှိမှသာ -(YYYY) ကို ထည့်မည်၊ မရှိပါက ဘာမှ မထည့်ပါ
-    const cleanYear = year ? year.replace(/[()]/g, '').trim() : '';
-    const yearMatch = cleanYear.match(/\b(19|20)\d{2}\b/);
+    // Year ရှိပါက -(YYYY) ပုံစံ ပြုလုပ်ပါ
+    const yearMatch = year ? year.match(/\b(19|20)\d{2}\b/) : null;
     const validYear = yearMatch ? yearMatch[0] : '';
-    
     const yearStr = validYear ? `-(${validYear})` : '';
 
     return `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`;
 }
 
-// 2. Detail Page Scraper (List တွင် Year မပါပါက Detail Page ထဲမှ Year ကို အလိုအလျောက် ရှာဖွေမည်)
-async function scrapeDetail(pageUrl, title, year) {
+// 2. Detail Page Scraper (Year မပါပါက Detail Page ထဲမှ ထပ်မံ ရှာဖွေပေးခြင်း)
+async function scrapeDetail(pageUrl, title, initialYear) {
     try {
         const { data } = await axios.get(pageUrl, { headers: HEADERS, timeout: 10000 });
         const $ = cheerio.load(data);
         
-        let finalYear = year;
+        let finalYear = initialYear;
 
-        // List တွင် Year မပါခဲ့ပါက Detail Page ထဲမှ Year ကို ရှာယူခြင်း
+        // List တွင် Year မပါခဲ့ပါက Detail Page ၏ H1, Title Tag နှင့် Meta တို့မှ Year ကို ရှာယူမည်
         if (!finalYear) {
-            const scrapedYear = cleanText($('.video-years, .year, .meta-year, .release-date, .entry-date').text());
-            const yearMatch = scrapedYear.match(/\b(19|20)\d{2}\b/);
+            const pageTitleText = $('h1, title, .entry-title').text();
+            const yearMatch = pageTitleText.match(/\b(19|20)\d{2}\b/);
             if (yearMatch) {
                 finalYear = yearMatch[0];
+            } else {
+                const metaYear = $('.video-years, .year, .meta-year, .release-date, .entry-date').text();
+                const metaMatch = metaYear.match(/\b(19|20)\d{2}\b/);
+                if (metaMatch) finalYear = metaMatch[0];
             }
         }
 
+        // Stream URL ရှာဖွေခြင်း
         let streamUrl = null;
         const m3u8Match = data.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i);
         if (m3u8Match) {
@@ -59,24 +61,28 @@ async function scrapeDetail(pageUrl, title, year) {
             if (iframeSrc) streamUrl = iframeSrc;
         }
 
+        // မတွေ့ပါက Correct URL Pattern ဖြင့် Build လုပ်မည်
         if (!streamUrl) {
             streamUrl = generateStreamUrl(title, finalYear);
         }
 
-        const fullDesc = cleanText($('.entry-content, .video-description, .description').text());
+        // Description သီးသန့် ရယူခြင်း (အခြား ဇာတ်ကားစာကြောင်းများ မရောစေရန်)
+        let fullDesc = cleanText($('.entry-content p, .video-description p, .description p').first().text());
+        if (!fullDesc) {
+            fullDesc = cleanText($('.entry-content, .video-description').text()).split('Show More')[0];
+        }
 
         return { streamUrl, fullDesc, finalYear };
     } catch (e) {
         return { 
-            streamUrl: generateStreamUrl(title, year),
+            streamUrl: generateStreamUrl(title, initialYear),
             fullDesc: "",
-            finalYear: year
+            finalYear: initialYear
         };
     }
 }
 
-
-// 3. Single List Page ကို Fetch လုပ်ပေးသည့် Function
+// 3. Single List Page ကို Scrape လုပ်ပေးသည့် Function
 async function fetchPageItems(url, type) {
     try {
         const { data } = await axios.get(url, { headers: HEADERS, timeout: 10000 });
@@ -87,14 +93,24 @@ async function fetchPageItems(url, type) {
             const $el = $(el);
             
             const titleTag = $el.find('.video_title a, h2 a, .entry-title a').first();
-            const title = cleanText(titleTag.text());
+            const rawTitle = cleanText(titleTag.text());
             let itemUrl = titleTag.attr('href');
 
-            if (!title || !itemUrl) return;
+            if (!rawTitle || !itemUrl) return;
 
             itemUrl = itemUrl.startsWith('http') ? itemUrl : BASE_URL + itemUrl;
 
-            const year = cleanText($el.find('.video-years, .year, .meta-year').text()) || "";
+            // ၁။ Title စာသားထဲမှ (2008) သို့မဟုတ် Year ကို တိုက်ရိုက် Regex ဖြင့် ထုတ်ယူခြင်း
+            let year = cleanText($el.find('.video-years, .year, .meta-year').text()) || "";
+            const yearInTitleMatch = rawTitle.match(/\b(19|20)\d{2}\b/);
+            
+            if (!year && yearInTitleMatch) {
+                year = yearInTitleMatch[0];
+            }
+
+            // ၂။ Title ထဲမှ Year စာသားကို ဖယ်ထုတ်ပြီး သန့်စင်သော Title ယူခြင်း
+            const title = rawTitle.replace(/\s*\(\d{4}\)\s*/g, '').trim();
+
             const description = cleanText($el.find('.video-description, .excerpt, .entry-summary').text()) || "";
             
             const img = $el.find('img').first();
@@ -122,7 +138,7 @@ async function fetchPageItems(url, type) {
     }
 }
 
-// 4. စာမျက်နှာပေါင်းစုံ (Pagination Loop) Scrape လုပ်ပေးမည့် Function
+// 4. Multi-page Scrape Loop
 async function scrapeAllPages(targetUrl, type = 'movie', maxPages = 5) {
     console.log(`\n🔍 Scraping all pages for ${type} starting from: ${targetUrl}`);
     const resultsMap = new Map();
@@ -156,17 +172,18 @@ async function scrapeAllPages(targetUrl, type = 'movie', maxPages = 5) {
 
     const allItems = Array.from(resultsMap.values());
     console.log(`\n→ Total unique items found: ${allItems.length}`);
-    console.log(`→ Processing stream URLs...`);
+    console.log(`→ Processing stream URLs & detail pages...`);
 
     const finalResults = [];
     for (let i = 0; i < allItems.length; i++) {
         const item = allItems[i];
-        console.log(`  🎬 [${i + 1}/${allItems.length}] Fetching stream: ${item.title}`);
+        console.log(`  🎬 [${i + 1}/${allItems.length}] Processing: ${item.title}`);
+        
         const detail = await scrapeDetail(item.itemUrl, item.title, item.year);
         
         finalResults.push({
             title: item.title,
-            year: item.year,
+            year: detail.finalYear || item.year,
             category: item.category,
             description: detail.fullDesc || item.description,
             logo: item.logo,
@@ -179,12 +196,10 @@ async function scrapeAllPages(targetUrl, type = 'movie', maxPages = 5) {
 
 // 5. Main Execution
 async function main() {
-    // Movies (maxPages ကို 5 ဟု သတ်မှတ်ထားသည်၊ လိုသလို တိုးနိုင်ပါသည်)
     const movies = await scrapeAllPages(`${BASE_URL}/new-release/`, 'movie', 5);
     await fs.writeJson('nanoflix_movies.json', movies, { spaces: 2 });
     console.log('✅ Movies saved to nanoflix_movies.json');
 
-    // TV Shows
     const tvShows = await scrapeAllPages(`${BASE_URL}/tv_shows/`, 'tv', 5);
     await fs.writeJson('nanoflix_tv_shows.json', tvShows, { spaces: 2 });
     console.log('✅ TV Shows saved to nanoflix_tv_shows.json');
@@ -193,4 +208,4 @@ async function main() {
 }
 
 main().catch(console.error);
-                
+                      
