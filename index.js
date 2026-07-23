@@ -10,35 +10,47 @@ const HEADERS = {
 // Extra Space များကို ရှင်းထုတ်ပေးသည့် Helper Function
 const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ') : '';
 
-// 1. Stream URL ကို တိကျသော Pattern ဖြစ်သည့် Title-(Year) ဖြင့် တည်ဆောက်ပေးသည့် Function
+// 1. Stream URL ဖွဲ့စည်းပေးမည့် Helper Function (Year မပါပါက URL မပျက်အောင် ပြင်ဆင်ထားသည်)
 function generateStreamUrl(title, year) {
     if (!title) return '';
 
-    // Title ထဲတွင် ပါဝင်နေသော (2008) စသည့် နှစ်များကို ဖယ်ထုတ်ပါ
+    // Title ထဲတွင် (2008) ပါဝင်နေပါက နှစ်ကို ဖယ်ထုတ်ပါ
     let cleanTitle = title.replace(/\s*\(\d{4}\)\s*/g, '').trim();
 
-    // စာလုံးတိုင်း၏ ပထမအက္ခရာကို Capital ပြုလုပ်ပြီး Space များကို '-' ပြောင်းပါ
+    // စာလုံးတိုင်း၏ ပထမအက္ခရာကို Capital ပြုလုပ်ပြီး space များကို '-' ပြောင်းပါ
     const formattedTitle = cleanTitle
         .split(/\s+/)
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join('-');
 
-    // Year ထဲမှ လက်သည်းကွင်းများကို ရှင်းထုတ်ပြီး -(YYYY) ပုံစံ ပြုလုပ်ပါ
+    // Year ရှိမှသာ -(YYYY) ကို ထည့်မည်၊ မရှိပါက ဘာမှ မထည့်ပါ
     const cleanYear = year ? year.replace(/[()]/g, '').trim() : '';
-    const yearStr = cleanYear ? `-(${cleanYear})` : '';
+    const yearMatch = cleanYear.match(/\b(19|20)\d{2}\b/);
+    const validYear = yearMatch ? yearMatch[0] : '';
+    
+    const yearStr = validYear ? `-(${validYear})` : '';
 
     return `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`;
 }
 
-// 2. Detail Page Scraper
+// 2. Detail Page Scraper (List တွင် Year မပါပါက Detail Page ထဲမှ Year ကို အလိုအလျောက် ရှာဖွေမည်)
 async function scrapeDetail(pageUrl, title, year) {
     try {
         const { data } = await axios.get(pageUrl, { headers: HEADERS, timeout: 10000 });
         const $ = cheerio.load(data);
         
-        let streamUrl = null;
+        let finalYear = year;
 
-        // Page ထဲတွင် .m3u8 တိုက်ရိုက်ပါမပါ ရှာပါ
+        // List တွင် Year မပါခဲ့ပါက Detail Page ထဲမှ Year ကို ရှာယူခြင်း
+        if (!finalYear) {
+            const scrapedYear = cleanText($('.video-years, .year, .meta-year, .release-date, .entry-date').text());
+            const yearMatch = scrapedYear.match(/\b(19|20)\d{2}\b/);
+            if (yearMatch) {
+                finalYear = yearMatch[0];
+            }
+        }
+
+        let streamUrl = null;
         const m3u8Match = data.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i);
         if (m3u8Match) {
             streamUrl = m3u8Match[0];
@@ -47,21 +59,22 @@ async function scrapeDetail(pageUrl, title, year) {
             if (iframeSrc) streamUrl = iframeSrc;
         }
 
-        // မတွေ့ပါက Correct Stream Pattern ဖြင့် Auto Generate လုပ်ပါ
         if (!streamUrl) {
-            streamUrl = generateStreamUrl(title, year);
+            streamUrl = generateStreamUrl(title, finalYear);
         }
 
         const fullDesc = cleanText($('.entry-content, .video-description, .description').text());
 
-        return { streamUrl, fullDesc };
+        return { streamUrl, fullDesc, finalYear };
     } catch (e) {
         return { 
             streamUrl: generateStreamUrl(title, year),
-            fullDesc: "" 
+            fullDesc: "",
+            finalYear: year
         };
     }
 }
+
 
 // 3. Single List Page ကို Fetch လုပ်ပေးသည့် Function
 async function fetchPageItems(url, type) {
