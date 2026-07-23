@@ -223,18 +223,71 @@ async function scrapeAllPages(targetUrl, type = 'movie', maxPages = 18) {
     return finalResults;
 }
 
-// 5. Main Execution
+// 5. Main Execution (Existing JSON နှင့် Merge လုပ်ပေးသည့် Logic)
 async function main() {
-    const movies = await scrapeAllPages(`${BASE_URL}/new-release/`, 'movie', 18);
-    await fs.writeJson('nanoflix_movies.json', movies, { spaces: 2 });
-    console.log('✅ Movies saved to nanoflix_movies.json');
+    const movieFilePath = 'nanoflix_movies.json';
+    const tvFilePath = 'nanoflix_tv_shows.json';
 
-    const tvShows = await scrapeAllPages(`${BASE_URL}/tv_shows/`, 'tv', 18);
-    await fs.writeJson('nanoflix_tv_shows.json', tvShows, { spaces: 2 });
-    console.log('✅ TV Shows saved to nanoflix_tv_shows.json');
+    // ၁။ Movies Scrape လုပ်ခြင်း
+    const scrapedMovies = await scrapeAllPages(`${BASE_URL}/new-release/`, 'movie', 18);
+    
+    // မူလ JSON ဖိုင်ရှိပါက အရင်ဖတ်ပါမည်
+    let existingMovies = [];
+    if (await fs.pathExists(movieFilePath)) {
+        existingMovies = await fs.readJson(movieFilePath);
+    }
 
-    console.log(`\n🎉 Completed! Total movies: ${movies.length} | TV shows: ${tvShows.length}`);
+    // Existing Movies များကို Map ဖြင့် သိမ်းဆည်းပါမည်
+    const mergedMoviesMap = new Map();
+    existingMovies.forEach(item => mergedMoviesMap.set(item.title, item));
+
+    // Scraped Data များကို Existing Data နှင့် ပေါင်းစပ်ပါမည်
+    scrapedMovies.forEach(newItem => {
+        if (mergedMoviesMap.has(newItem.title)) {
+            const oldItem = mergedMoviesMap.get(newItem.title);
+            // အကယ်၍ မူလ JSON တွင် Year ပြင်ထားပြီးဖြစ်ပါက မူလ Year ကိုအတည်ယူမည်
+            mergedMoviesMap.set(newItem.title, {
+                ...newItem,
+                year: oldItem.year || newItem.year // Old Year ကို မဖျက်ဘဲ ထိန်းထားမည်
+            });
+        } else {
+            mergedMoviesMap.set(newItem.title, newItem); // ကားအသစ်ဆိုလျှင် ထပ်ပေါင်းမည်
+        }
+    });
+
+    const finalMovies = Array.from(mergedMoviesMap.values());
+    await fs.writeJson(movieFilePath, finalMovies, { spaces: 2 });
+    console.log(`✅ Movies saved (Total: ${finalMovies.length})`);
+
+
+    // ၂။ TV Shows Scrape လုပ်ခြင်း
+    const scrapedTv = await scrapeAllPages(`${BASE_URL}/tv_shows/`, 'tv', 18);
+    
+    let existingTv = [];
+    if (await fs.pathExists(tvFilePath)) {
+        existingTv = await fs.readJson(tvFilePath);
+    }
+
+    const mergedTvMap = new Map();
+    existingTv.forEach(item => mergedTvMap.set(item.title, item));
+
+    scrapedTv.forEach(newItem => {
+        if (mergedTvMap.has(newItem.title)) {
+            const oldItem = mergedTvMap.get(newItem.title);
+            mergedTvMap.set(newItem.title, {
+                ...newItem,
+                year: oldItem.year || newItem.year
+            });
+        } else {
+            mergedTvMap.set(newItem.title, newItem);
+        }
+    });
+
+    const finalTv = Array.from(mergedTvMap.values());
+    await fs.writeJson(tvFilePath, finalTv, { spaces: 2 });
+    console.log(`✅ TV Shows saved (Total: ${finalTv.length})`);
+
+    console.log(`\n🎉 Completed Auto-Merge!`);
 }
 
 main().catch(console.error);
-        
