@@ -9,27 +9,12 @@ const HEADERS = {
 
 const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ') : '';
 
-// Stream URL ကို Title-(Year)/master.m3u8 ပုံစံဖြင့် တည်ဆောက်ပေးသည့် Function
-function formatStreamUrl(title, year) {
-    if (!title) return '';
-    const formattedTitle = title
-        .trim()
-        .split(/\s+/)
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-        .join('-');
-    
-    // Year ရှိပါက -(2008) ပုံစံဖြင့် ကွင်းစကွင်းပိတ် ထည့်သွင်းမည်
-    const yearStr = year ? `-(${year})` : '';
-    return `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`;
-}
-
-// Detail page သို့ဝင်ရောက်ပြီး Stream URL နှင့် Description အပြည့်အစုံ ရယူခြင်း
+// Detail page သို့ဝင်ရောက်ပြီး Stream URL နှင့် Description ဆွဲယူခြင်း
 async function scrapeDetail(pageUrl, title, year) {
     try {
-        const { data } = await axios.get(pageUrl, { headers: HEADERS });
+        const { data } = await axios.get(pageUrl, { headers: HEADERS, timeout: 10000 });
         const $ = cheerio.load(data);
         
-        // 1. Script/HTML ထဲမှ .m3u8 URL ကို တိုက်ရိုက် ရှာဖွေခြင်း
         let streamUrl = null;
         const m3u8Match = data.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i);
         
@@ -40,54 +25,59 @@ async function scrapeDetail(pageUrl, title, year) {
             if (iframeSrc) streamUrl = iframeSrc;
         }
 
-        // 2. တိုက်ရိုက်ရှာမတွေ့ပါက Title-(Year) Pattern ဖြင့် Auto Formatting ပြုလုပ်ခြင်း
-        if (!streamUrl) {
-            streamUrl = formatStreamUrl(title, year);
+        if (!streamUrl && title) {
+            const formattedTitle = title
+                .split(' ')
+                .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                .join('-');
+            const yearStr = year ? `-${year}` : '';
+            streamUrl = `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`;
         }
 
         const fullDesc = cleanText($('.entry-content, .video-description, .description').text());
 
         return { streamUrl, fullDesc };
     } catch (e) {
-        console.error(`  ⚠️ Detail Error (${pageUrl}):`, e.message);
+        const formattedTitle = title ? title.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-') : 'movie';
+        const yearStr = year ? `-${year}` : '';
         return { 
-            streamUrl: formatStreamUrl(title, year),
+            streamUrl: `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`,
             fullDesc: "" 
         };
     }
 }
 
-async function scrapeListPage(listUrl, type = 'movie') {
-    console.log(`\n🔍 Scraping ${type} list: ${listUrl}`);
-    const { data } = await axios.get(listUrl, { headers: HEADERS });
-    const $ = cheerio.load(data);
-    const resultsMap = new Map();
+// Single List Page များကို Scrape လုပ်ပေးသည့် Function
+async function fetchPageItems(url, type) {
+    try {
+        const { data } = await axios.get(url, { headers: HEADERS, timeout: 10000 });
+        const $ = cheerio.load(data);
+        const items = [];
 
-    $('.jws-post-item, article.post, .video-item').each((i, el) => {
-        const $el = $(el);
-        
-        const titleTag = $el.find('.video_title a, h2 a, .entry-title a').first();
-        const title = cleanText(titleTag.text());
-        let itemUrl = titleTag.attr('href');
+        $('.jws-post-item, article.post, .video-item').each((i, el) => {
+            const $el = $(el);
+            
+            const titleTag = $el.find('.video_title a, h2 a, .entry-title a').first();
+            const title = cleanText(titleTag.text());
+            let itemUrl = titleTag.attr('href');
 
-        if (!title || !itemUrl) return;
+            if (!title || !itemUrl) return;
 
-        itemUrl = itemUrl.startsWith('http') ? itemUrl : BASE_URL + itemUrl;
+            itemUrl = itemUrl.startsWith('http') ? itemUrl : BASE_URL + itemUrl;
 
-        const year = cleanText($el.find('.video-years, .year, .meta-year').text()) || "";
-        const description = cleanText($el.find('.video-description, .excerpt, .entry-summary').text()) || "";
-        
-        const img = $el.find('img').first();
-        let logo = img.attr('data-src') || img.attr('src') || img.attr('data-lazy') || "";
-        if (logo && logo.startsWith('//')) logo = 'https:' + logo;
+            const year = cleanText($el.find('.video-years, .year, .meta-year').text()) || "";
+            const description = cleanText($el.find('.video-description, .excerpt, .entry-summary').text()) || "";
+            
+            const img = $el.find('img').first();
+            let logo = img.attr('data-src') || img.attr('src') || img.attr('data-lazy') || "";
+            if (logo && logo.startsWith('//')) logo = 'https:' + logo;
 
-        const genres = $el.find('.video-cat a, .genre a, .category a')
-            .map((_, a) => cleanText($(a).text())).get().filter(Boolean);
+            const genres = $el.find('.video-cat a, .genre a, .category a')
+                .map((_, a) => cleanText($(a).text())).get().filter(Boolean);
 
-        const category = genres.length > 0 ? genres[0] : (type === 'tv' ? 'TV Series' : 'Action');
+            const category = genres.length > 0 ? genres[0] : (type === 'tv' ? 'TV Series' : 'Action');
 
-        if (!resultsMap.has(itemUrl) || (!resultsMap.get(itemUrl).year && year)) {
-            resultsMap.set(itemUrl, {
+            items.push({
                 title,
                 year,
                 category,
@@ -95,16 +85,55 @@ async function scrapeListPage(listUrl, type = 'movie') {
                 logo,
                 itemUrl
             });
-        }
-    });
+        });
 
-    const items = Array.from(resultsMap.values());
-    console.log(`→ Found ${items.length} unique items. Processing stream URLs...`);
+        return items;
+    } catch (e) {
+        return []; // စာမျက်နှာ ကုန်သွားပါက သို့မဟုတ် Error တက်ပါက Array အလွတ်ပြန်မည်
+    }
+}
+
+// Сာမျက်နှာပေါင်းစုံ (Pagination) ကို Loop ပတ်၍ Multi-page Scrape လုပ်ပေးမည့် Function
+async function scrapeAllPages(targetUrl, type = 'movie', maxPages = 5) {
+    console.log(`\n🔍 Scraping all pages for ${type} starting from: ${targetUrl}`);
+    const resultsMap = new Map();
+
+    for (let page = 1; page <= maxPages; page++) {
+        // WordPress Pagination Format: /page/1/, /page/2/ သို့မဟုတ် ?paged=2
+        let pageUrl = targetUrl;
+        if (page > 1) {
+            pageUrl = targetUrl.endsWith('/') 
+                ? `${targetUrl}page/${page}/` 
+                : `${targetUrl}/page/${page}/`;
+        }
+
+        console.log(`  📄 Fetching Page ${page}: ${pageUrl}`);
+        const items = await fetchPageItems(pageUrl, type);
+
+        if (items.length === 0) {
+            console.log(`  ⏹️ Page ${page} တွင် Data မရှိတော့ပါ။ Scraping ရပ်နားပါမည်။`);
+            break;
+        }
+
+        let newItemsCount = 0;
+        for (const item of items) {
+            if (!resultsMap.has(item.itemUrl)) {
+                resultsMap.set(item.itemUrl, item);
+                newItemsCount++;
+            }
+        }
+
+        console.log(`  ↳ Found ${items.length} items (${newItemsCount} new) on page ${page}`);
+    }
+
+    const allItems = Array.from(resultsMap.values());
+    console.log(`\n→ Total unique items found across pages: ${allItems.length}`);
+    console.log(`→ Fetching stream URLs for all ${allItems.length} items...`);
 
     const finalResults = [];
-
-    for (let item of items) {
-        console.log(`  🎬 Fetching stream data: ${item.title}`);
+    for (let i = 0; i < allItems.length; i++) {
+        const item = allItems[i];
+        console.log(`  🎬 [${i + 1}/${allItems.length}] Fetching stream: ${item.title}`);
         const detail = await scrapeDetail(item.itemUrl, item.title, item.year);
         
         finalResults.push({
@@ -121,13 +150,13 @@ async function scrapeListPage(listUrl, type = 'movie') {
 }
 
 async function main() {
-    // Movies
-    const movies = await scrapeListPage(`${BASE_URL}/movie/`, 'movie');
+    // 1. New Releases (Movies) - maxPages ကို လိုသလို တိုး/လျှော့ ပြုလုပ်နိုင်ပါသည်
+    const movies = await scrapeAllPages(`${BASE_URL}/new-release/`, 'movie', 5);
     await fs.writeJson('nanoflix_movies.json', movies, { spaces: 2 });
     console.log('✅ Movies saved to nanoflix_movies.json');
 
-    // TV Shows
-    const tvShows = await scrapeListPage(`${BASE_URL}/tv_shows/`, 'tv');
+    // 2. TV Shows
+    const tvShows = await scrapeAllPages(`${BASE_URL}/tv_shows/`, 'tv', 5);
     await fs.writeJson('nanoflix_tv_shows.json', tvShows, { spaces: 2 });
     console.log('✅ TV Shows saved to nanoflix_tv_shows.json');
 
