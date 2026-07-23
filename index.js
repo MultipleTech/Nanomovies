@@ -13,7 +13,6 @@ const cleanText = (text) => text ? text.trim().replace(/\s+/g, ' ') : '';
 function generateStreamUrl(title, year) {
     if (!title) return '';
 
-    // Title ထဲမှ Year နှင့် ပိုနေသော စာသားများကို ဖယ်ထုတ်ပါ
     let cleanTitle = title
         .replace(/\s*\(\s*(19\d{2}|20\d{2})\s*\)/g, '')
         .replace(/\b(19\d{2}|20\d{2})\b/g, '')
@@ -31,7 +30,7 @@ function generateStreamUrl(title, year) {
     return `https://stream.nanoflix.io/${formattedTitle}${yearStr}/master.m3u8`;
 }
 
-// 2. Detail Page Scraper (Meta Title & Header များပါ လိုက်ရှာပေးမည်)
+// 2. Detail Page Scraper (Multi-source Fallback ရေးထားသည်)
 async function scrapeDetail(pageUrl, title, initialYear) {
     try {
         const { data } = await axios.get(pageUrl, { headers: HEADERS, timeout: 10000 });
@@ -39,21 +38,48 @@ async function scrapeDetail(pageUrl, title, initialYear) {
         
         let finalYear = initialYear;
 
-        // List တွင် Year မပါခဲ့ပါက Detail Page ၏ Meta/Title Tag များမှ တိကျစွာ ရှာယူမည်
+        // List တွင် Year မပါခဲ့ပါက နည်းလမ်း ၅ ခုဖြင့် လိုက်ရှာမည်
         if (!finalYear) {
-            // ၁။ Open Graph Title သို့မဟုတ် Page <title> ထဲမှ Year ရှာခြင်း (အထိရောက်ဆုံး)
-            const metaTitle = $('meta[property="og:title"]').attr('content') || $('title').text() || '';
-            let yearMatch = metaTitle.match(/\b(19\d{2}|20\d{2})\b/);
-
-            // ၂။ မတွေ့သေးပါက Body Area (Footer မပါ) ထဲမှ ရှာခြင်း
-            if (!yearMatch) {
-                $('footer, header, nav, .footer, .header, .site-footer, .site-header').remove();
-                const targetAreaText = $('.movie-info, .entry-title, .video-info, .post-meta, h1, .dt-release, .entry-content').text();
-                yearMatch = targetAreaText.match(/\b(19\d{2}|20\d{2})\b/);
+            
+            // နည်းလမ်း ၁ - URL Slug ထဲမှ Year ကို ရှာခြင်း (ဥပမာ /movie/ghajini-2008/)
+            const urlYearMatch = pageUrl.match(/\b(19\d{2}|20[0-2]\d)\b/);
+            if (urlYearMatch) {
+                finalYear = urlYearMatch[0];
             }
 
-            if (yearMatch) {
-                finalYear = yearMatch[0];
+            // နည်းလမ်း ၂ - JSON-LD Metadata ထဲမှ datePublished/releaseDate ရှာခြင်း
+            if (!finalYear) {
+                $('script[type="application/ld+json"]').each((_, el) => {
+                    const jsonText = $(el).html() || '';
+                    const jsonMatch = jsonText.match(/"(datePublished|releaseDate|uploadDate)"\s*:\s*"(\d{4})/i);
+                    if (jsonMatch && jsonMatch[2]) {
+                        finalYear = jsonMatch[2];
+                    }
+                });
+            }
+
+            // နည်းလမ်း ၃ - Meta Tag Article Published Time မှ ရှာခြင်း
+            if (!finalYear) {
+                const metaPublished = $('meta[property="article:published_time"]').attr('content');
+                if (metaPublished) {
+                    const pubYearMatch = metaPublished.match(/\b(19\d{2}|20[0-2]\d)\b/);
+                    if (pubYearMatch) finalYear = pubYearMatch[0];
+                }
+            }
+
+            // နည်းလမ်း ၄ - Page Title / Meta Title မှ ရှာခြင်း
+            if (!finalYear) {
+                const metaTitle = $('meta[property="og:title"]').attr('content') || $('title').text() || '';
+                const titleYearMatch = metaTitle.match(/\b(19\d{2}|20[0-2]\d)\b/);
+                if (titleYearMatch) finalYear = titleYearMatch[0];
+            }
+
+            // နည်းလမ်း ၅ - Main Page Content ထဲမှ ရှာခြင်း (Footer/Header များကို ဖယ်ထုတ်ပြီးမှ ရှာမည်)
+            if (!finalYear) {
+                $('footer, header, nav, .footer, .header, .site-footer, .site-header').remove();
+                const targetAreaText = $('.movie-info, .entry-title, .video-info, .post-meta, h1, .dt-release, .entry-content').text();
+                const contentYearMatch = targetAreaText.match(/\b(19\d{2}|20[0-2]\d)\b/);
+                if (contentYearMatch) finalYear = contentYearMatch[0];
             }
         }
 
@@ -86,7 +112,7 @@ async function scrapeDetail(pageUrl, title, initialYear) {
     }
 }
 
-// 3. Single List Page ကို Scrape လုပ်ပေးသည့် Function
+// 3. Single List Page Scraper
 async function fetchPageItems(url, type) {
     try {
         const { data } = await axios.get(url, { headers: HEADERS, timeout: 10000 });
@@ -104,14 +130,14 @@ async function fetchPageItems(url, type) {
 
             itemUrl = itemUrl.startsWith('http') ? itemUrl : BASE_URL + itemUrl;
 
-            // Card စာသားမှ Year ဖမ်းယူခြင်း
+            // Card Text သို့မဟုတ် Card Link URL မှ Year ကို ရှာမည်
             const cardText = $el.find('.video-years, .year, .meta-year, .post-meta').text() || $el.text();
-            const yearMatch = cardText.match(/\b(19\d{2}|20\d{2})\b/);
+            let yearMatch = cardText.match(/\b(19\d{2}|20[0-2]\d)\b/) || itemUrl.match(/\b(19\d{2}|20[0-2]\d)\b/);
             let year = yearMatch ? yearMatch[0] : "";
 
             const title = rawTitle
-                .replace(/\s*\(\s*(19\d{2}|20\d{2})\s*\)\s*/g, '')
-                .replace(/\b(19\d{2}|20\d{2})\b/g, '')
+                .replace(/\s*\(\s*(19\d{2}|20[0-2]\d)\s*\)\s*/g, '')
+                .replace(/\b(19\d{2}|20[0-2]\d)\b/g, '')
                 .trim();
 
             const description = cleanText($el.find('.video-description, .excerpt, .entry-summary').text()) || "";
@@ -199,7 +225,6 @@ async function scrapeAllPages(targetUrl, type = 'movie', maxPages = 18) {
 
 // 5. Main Execution
 async function main() {
-    // maxPages ကို 18 သို့ တိုးမြှင့်ထားသည်
     const movies = await scrapeAllPages(`${BASE_URL}/new-release/`, 'movie', 18);
     await fs.writeJson('nanoflix_movies.json', movies, { spaces: 2 });
     console.log('✅ Movies saved to nanoflix_movies.json');
@@ -212,4 +237,4 @@ async function main() {
 }
 
 main().catch(console.error);
-                                                              
+        
