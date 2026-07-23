@@ -2,9 +2,9 @@ name: Nanoflix Scraper
 
 on:
   schedule:
-    # Runs daily at 00:00 UTC (Adjust cron schedule as needed)
+    # နေ့စဉ် မြန်မာစံတော်ချိန် မနက် ၆:၃၀ (UTC 00:00) တွင် Auto Run မည်
     - cron: '0 0 * * *'
-  workflow_dispatch: # Allows manual trigger from the Actions tab
+  workflow_dispatch: # Actions Tab မှ သီးသန့် အချိန်မရွေး နှိပ် Run နိုင်သည်
   push:
     branches:
       - main
@@ -13,7 +13,6 @@ jobs:
   scrape-and-save:
     runs-on: ubuntu-latest
 
-    # Grant write permission to commit updated JSON files back to the repo
     permissions:
       contents: write
 
@@ -31,12 +30,23 @@ jobs:
         run: npm ci || npm install
 
       - name: Run Scraper
-        run: node index.js # Ensure your JS file is named index.js (or update this name)
+        # မိမိစက်ထဲရှိ JS ဖိုင်အမည် (scraper.js သို့မဟုတ် index.js) အမှန်အတိုင်း ထည့်ပါ
+        run: node scraper.js
 
       - name: Commit and Push updated JSON
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add nanoflix_movies.json nanoflix_tv_shows.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: auto-update scraped movie/tv data [skip ci]" && git push)
+          
+          # JSON ဖိုင်များကိုသာ သီးသန့် Stage လုပ်မည်
+          git add nanoflix_movies.json nanoflix_tv_shows.json 2>/dev/null || true
+          
+          # JSON ဖိုင်များထဲတွင် ပြောင်းလဲမှု (Update) ရှိမှသာ Commit & Push လုပ်မည်
+          if [ -n "$(git status --porcelain nanoflix_movies.json nanoflix_tv_shows.json)" ]; then
+            git commit -m "chore: auto-update scraped movie/tv data [skip ci]"
+            git push
+            echo "✅ Data အသစ်များကို GitHub သို့ Commit & Push လုပ်ပြီးပါပြီ။"
+          else
+            echo "ℹ️ JSON ဖိုင်များတွင် ပြောင်းလဲမှု မရှိသေးပါ။"
+          fi
           
