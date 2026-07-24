@@ -2,7 +2,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs-extra');
 
-const BASE_URL = 'https://books.toscrape.com/catalogue';
+const BASE_URL = 'https://nanoflix.io';
 const HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 };
