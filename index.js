@@ -225,7 +225,7 @@ async function scrapeAllPages(targetUrl, type = 'movie', maxPages = 18) {
 
 // 5. Main Execution (Existing JSON နှင့် Merge လုပ်ပေးသည့် Logic)
 async function main() {
-    const movieFilePath = 'nanoflix_movies.json';
+    const movieFilePath = 'movies_data.json';
     const tvFilePath = 'nanoflix_tv_shows.json';
 
     // ၁။ Movies Scrape လုပ်ခြင်း
