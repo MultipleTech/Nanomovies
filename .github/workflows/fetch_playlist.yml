@@ -10,7 +10,7 @@ on:
       - main
     # JSON ဖိုင်များ နှင့် README စသည်တို့ကို Manual ပြင်ပြီး Push လုပ်ပါက Workflow ကို မ Run စေရန် တားဆီးခြင်း
     paths-ignore:
-      - 'nanoflix_movies.json'
+      - 'movies_data.json'
       - 'nanoflix_tv_shows.json'
       - '**.md'
 
@@ -43,10 +43,10 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
           # JSON ဖိုင်များကိုသာ သီးသန့် Stage လုပ်မည်
-          git add nanoflix_movies.json nanoflix_tv_shows.json 2>/dev/null || true
+          git add movies_data.json nanoflix_tv_shows.json 2>/dev/null || true
           
           # JSON ဖိုင်များထဲတွင် ပြောင်းလဲမှု (Update) ရှိမှသာ Commit & Push လုပ်မည်
-          if [ -n "$(git status --porcelain nanoflix_movies.json nanoflix_tv_shows.json)" ]; then
+          if [ -n "$(git status --porcelain movies_data.json nanoflix_tv_shows.json)" ]; then
             git commit -m "chore: auto-update scraped movie/tv data [skip ci]"
             git push
             echo "✅ Data အသစ်များကို GitHub သို့ Commit & Push လုပ်ပြီးပါပြီ။"
