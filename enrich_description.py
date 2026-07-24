@@ -12,7 +12,7 @@ HEADERS = {
 }
 
 def clean_description(text):
-    """HTML Tags၊ +++++++ နှင့် မလိုလားအပ်သော သင်္ကေတများ ဖယ်ထုတ်ပေးသည့် Function"""
+    """HTML Tags, +++++++ နှင့် မလိုလားအပ်သော သင်္ကေတများ ဖယ်ထုတ်ပေးသည့် Function"""
     if not text:
         return ""
     soup = BeautifulSoup(text, 'html.parser')
@@ -148,4 +148,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
+                              
