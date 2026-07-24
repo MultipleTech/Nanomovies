@@ -2,7 +2,7 @@ name: Enrich Movie Descriptions
 
 on:
   schedule:
-    # နေ့စဉ် မနက် ၇:၀၀ (Scraper ပြီးစီးပြီးနောက် အလိုအလျောက် Run မည်)
+    # နေ့စဉ် မနက် ၇:၀၀ (UTC 00:30) Scraper ပြီးစီးပြီးနောက် အလိုအလျောက် Run မည်
     - cron: '30 0 * * *'
   workflow_dispatch: # Actions Tab မှ Manual နှိပ် Run နိုင်သည်
 
@@ -44,3 +44,4 @@ jobs:
           else
             echo "ℹ️ ဖြည့်စွက်ရန် Description အသစ် မရှိပါ။"
           fi
+          
