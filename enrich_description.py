@@ -6,39 +6,78 @@ import requests
 from bs4 import BeautifulSoup
 
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9,my;q=0.8'
 }
 
 def clean_description(text):
-    """စာသားထဲမှ +++++++ နှင့် ပိုနေသော Space များကို ရှင်းထုတ်ပေးသည့် Function"""
+    """HTML Tags၊ +++++++ နှင့် မလိုလားအပ်သော သင်္ကေတများ ဖယ်ထုတ်ပေးသည့် Function"""
     if not text:
         return ""
-    text = re.sub(r'\+[\+\s]+', ' ', text)
-    text = re.sub(r'^[^\w\s\u1000-\u109F]+', '', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
+    soup = BeautifulSoup(text, 'html.parser')
+    clean_text = soup.get_text(separator=' ')
+    
+    clean_text = re.sub(r'\+[\+\s]+', ' ', clean_text)
+    clean_text = re.sub(r'^[^\w\s\u1000-\u109F]+', '', clean_text)
+    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+    return clean_text
 
-def search_cinemm_via_wp_api(clean_title):
-    """၁။ WordPress REST API ဖြင့် တိုက်ရိုက် ရှာဖွေခြင်း (အထိရောက်ဆုံးနှင့် အတိကျဆုံး)"""
+def fetch_description_from_page(page_url):
+    """Detail Page URL မှ မြန်မာစာ ပါသော Description ကို တိုက်ရိုက် ဖတ်ယူပေးသည့် Function"""
     try:
-        api_url = f"https://cinemm.com/wp-json/wp/v2/posts?search={urllib.parse.quote(clean_title)}&per_page=3"
-        res = requests.get(api_url, headers=HEADERS, timeout=8)
-        if res.status_code == 200:
-            posts = res.json()
-            if posts and len(posts) > 0:
-                post = posts[0]
-                raw_html = post.get('content', {}).get('rendered', '') or post.get('excerpt', {}).get('rendered', '')
-                soup = BeautifulSoup(raw_html, 'html.parser')
-                text = soup.get_text()
+        res = requests.get(page_url, headers=HEADERS, timeout=10)
+        if res.status_code != 200:
+            return ""
+            
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # မြန်မာ Unicode စာသားပါသော Paragraph များကို ဦးစားပေးရှာမည်
+        paragraphs = soup.find_all(['p', 'div'])
+        for p in paragraphs:
+            text = p.get_text(strip=True)
+            # မြန်မာစာ (Unicode Range \u1000-\u109F) ပါမပါ နှင့် စာလုံးရေ အလုံအလောက် ရှိမရှိ စစ်ဆေးခြင်း
+            if len(text) > 30 and re.search(r'[\u1000-\u109F]', text):
                 cleaned = clean_description(text)
-                if len(cleaned) > 20:
+                if len(cleaned) > 30 and not cleaned.startswith(('http', 'Copyright', 'Download', 'Watch')):
                     return cleaned
     except Exception:
         pass
     return ""
 
+def search_cinemm_via_unified_wp_api(clean_title):
+    """၁။ WordPress Unified Search API (/wp-json/wp/v2/search) သုံး၍ Custom Post Type (Movies) အားလုံးထဲတွင် ရှာဖွေခြင်း"""
+    try:
+        search_url = f"https://cinemm.com/wp-json/wp/v2/search?search={urllib.parse.quote(clean_title)}&per_page=5"
+        res = requests.get(search_url, headers=HEADERS, timeout=10)
+        
+        if res.status_code == 200:
+            items = res.json()
+            if items and len(items) > 0:
+                for item in items:
+                    # Search result item ၏ self API link မှတစ်ဆင့် content တိုက်ရိုက်ဆွဲယူခြင်း
+                    self_link = item.get('_links', {}).get('self', [{}])[0].get('href')
+                    if self_link:
+                        item_res = requests.get(self_link, headers=HEADERS, timeout=10)
+                        if item_res.status_code == 200:
+                            data = item_res.json()
+                            raw_content = data.get('content', {}).get('rendered', '') or data.get('excerpt', {}).get('rendered', '')
+                            cleaned = clean_description(raw_content)
+                            if len(cleaned) > 20:
+                                return cleaned
+                    
+                    # API link မရပါက Page URL မှ လှမ်းဆွဲမည်
+                    page_url = item.get('url')
+                    if page_url:
+                        desc = fetch_description_from_page(page_url)
+                        if desc:
+                            return desc
+    except Exception:
+        pass
+    return ""
+
 def search_cinemm_via_html(clean_title):
-    """၂။ HTML Search Page မှ Selector အစုံဖြင့် လိုက်ရှာခြင်း"""
+    """၂။ HTML Search Page (?s=title) မှ Link ရှာပြီး Scraping လုပ်ခြင်း"""
     try:
         search_url = f"https://cinemm.com/?s={urllib.parse.quote(clean_title)}"
         res = requests.get(search_url, headers=HEADERS, timeout=10)
@@ -46,57 +85,33 @@ def search_cinemm_via_html(clean_title):
             return ""
 
         soup = BeautifulSoup(res.text, 'html.parser')
-
-        # Link ရှာရန် Selector မျိုးစုံ သုံးထားသည်
-        links = soup.select('article a, .post-title a, .entry-title a, h2 a, h3 a, .item a, .result-item a, a[href*="cinemm.com"]')
         
-        target_link = None
+        links = soup.select('a[href*="cinemm.com"]')
         for a in links:
             href = a.get('href', '')
-            text = a.get_text(strip=True).lower()
-            if href and 'cinemm.com' in href and not href.endswith('/?s='):
-                if clean_title.lower() in text or clean_title.lower() in href.lower():
-                    target_link = href
-                    break
-                elif not target_link:
-                    target_link = href
-
-        if not target_link:
-            return ""
-
-        detail_res = requests.get(target_link, headers=HEADERS, timeout=10)
-        if detail_res.status_code != 200:
-            return ""
-
-        detail_soup = BeautifulSoup(detail_res.text, 'html.parser')
-        paragraphs = detail_soup.select('.entry-content p, .description p, .overview p, .post-content p, article p, p')
-        
-        full_text = []
-        for p in paragraphs:
-            p_text = p.get_text(strip=True)
-            if len(p_text) > 20 and not p_text.startswith(('http', 'Copyright', 'Download')):
-                full_text.append(p_text)
-
-        combined = " ".join(full_text)
-        cleaned = clean_description(combined)
-        if len(cleaned) > 20:
-            return cleaned
-
+            if href and not any(x in href for x in ['/?s=', '/category/', '/tag/', '/page/']):
+                desc = fetch_description_from_page(href)
+                if desc:
+                    return desc
     except Exception:
         pass
     return ""
 
 def search_cinemm_description(title):
-    # Title ထဲမှ Year (2025) စသည်များကို ဖြုတ်ပြီး Title သန့်သန့်ဖြင့် ရှာမည်
+    # Title သန့်စင်ခြင်း (ဥပမာ "Soul On Fire (2025)" -> "Soul On Fire")
     clean_title = re.sub(r'\s*\(\s*(19\d{2}|20\d{2})\s*\)', '', title).strip()
     
-    # 1. WP-JSON API ဖြင့် အရင်စမ်းမည်
-    desc = search_cinemm_via_wp_api(clean_title)
+    # ၁။ Unified WP API ဖြင့် အရင်စမ်းမည်
+    desc = search_cinemm_via_unified_wp_api(clean_title)
     if desc:
         return desc
 
-    # 2. မရပါက HTML Scraping ဖြင့် ဆက်လက်စမ်းမည်
-    return search_cinemm_via_html(clean_title)
+    # ၂။ HTML Search Page ဖြင့် ဆက်လက်စမ်းမည်
+    desc = search_cinemm_via_html(clean_title)
+    if desc:
+        return desc
+        
+    return ""
 
 def main():
     file_path = 'nanoflix_movies.json'
@@ -133,4 +148,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-        
+    
